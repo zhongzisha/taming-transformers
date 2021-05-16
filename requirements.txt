@@ -1,0 +1,14 @@
+numpy
+albumentations
+pillow
+torch
+tqdm
+opencv-python
+yaml
+pyyaml
+omegaconf
+scikit-image
+torchvision
+requests
+scipy
+setuptools
