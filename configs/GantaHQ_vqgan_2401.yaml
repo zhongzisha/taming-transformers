@@ -21,7 +21,7 @@ model:
       params:
         disc_conditional: False
         disc_in_channels: 3
-        disc_start: 1201    # this is global_step based
+        disc_start: 2401    # this is global_step based
         disc_weight: 0.8
         codebook_weight: 1.0
 

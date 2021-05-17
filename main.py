@@ -11,6 +11,7 @@ from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, Callback, LearningRateMonitor
 from pytorch_lightning.utilities.distributed import rank_zero_only
 
+
 def get_obj_from_str(string, reload=False):
     module, cls = string.rsplit(".", 1)
     if reload:
@@ -55,7 +56,7 @@ def get_parser(**parser_kwargs):
         nargs="*",
         metavar="base_config.yaml",
         help="paths to base configs. Loaded from left-to-right. "
-        "Parameters can be overwritten or added with command-line options of the form `--key value`.",
+             "Parameters can be overwritten or added with command-line options of the form `--key value`.",
         default=list(),
     )
     parser.add_argument(
@@ -99,6 +100,12 @@ def get_parser(**parser_kwargs):
         default="",
         help="post-postfix for default name",
     )
+    parser.add_argument(
+        "--save_root",
+        type=str,
+        default=".",
+        help="save root",
+    )
 
     return parser
 
@@ -118,6 +125,7 @@ def instantiate_from_config(config):
 
 class WrappedDataset(Dataset):
     """Wraps an arbitrary object with __len__ and __getitem__ into a pytorch dataset"""
+
     def __init__(self, dataset):
         self.data = dataset
 
@@ -134,7 +142,7 @@ class DataModuleFromConfig(pl.LightningDataModule):
         super().__init__()
         self.batch_size = batch_size
         self.dataset_configs = dict()
-        self.num_workers = num_workers if num_workers is not None else batch_size*2
+        self.num_workers = num_workers if num_workers is not None else batch_size * 2
         if train is not None:
             self.dataset_configs["train"] = train
             self.train_dataloader = self._train_dataloader
@@ -239,7 +247,7 @@ class ImageLogger(Callback):
     def _testtube(self, pl_module, images, batch_idx, split):
         for k in images:
             grid = torchvision.utils.make_grid(images[k])
-            grid = (grid+1.0)/2.0 # -1,1 -> 0,1; c,h,w
+            grid = (grid + 1.0) / 2.0  # -1,1 -> 0,1; c,h,w
 
             tag = f"{split}/{k}"
             pl_module.logger.experiment.add_image(
@@ -253,10 +261,10 @@ class ImageLogger(Callback):
         for k in images:
             grid = torchvision.utils.make_grid(images[k], nrow=4)
 
-            grid = (grid+1.0)/2.0 # -1,1 -> 0,1; c,h,w
-            grid = grid.transpose(0,1).transpose(1,2).squeeze(-1)
+            grid = (grid + 1.0) / 2.0  # -1,1 -> 0,1; c,h,w
+            grid = grid.transpose(0, 1).transpose(1, 2).squeeze(-1)
             grid = grid.numpy()
-            grid = (grid*255).astype(np.uint8)
+            grid = (grid * 255).astype(np.uint8)
             filename = "{}_gs-{:06}_e-{:06}_b-{:06}.png".format(
                 k,
                 global_step,
@@ -377,7 +385,7 @@ if __name__ == "__main__":
             raise ValueError("Cannot find {}".format(opt.resume))
         if os.path.isfile(opt.resume):
             paths = opt.resume.split("/")
-            idx = len(paths)-paths[::-1].index("logs")+1
+            idx = len(paths) - paths[::-1].index("logs") + 1
             logdir = "/".join(paths[:idx])
             ckpt = opt.resume
         else:
@@ -387,20 +395,20 @@ if __name__ == "__main__":
 
         opt.resume_from_checkpoint = ckpt
         base_configs = sorted(glob.glob(os.path.join(logdir, "configs/*.yaml")))
-        opt.base = base_configs+opt.base
+        opt.base = base_configs + opt.base
         _tmp = logdir.split("/")
-        nowname = _tmp[_tmp.index("logs")+1]
+        nowname = _tmp[_tmp.index("logs") + 1]
     else:
         if opt.name:
-            name = "_"+opt.name
+            name = "_" + opt.name
         elif opt.base:
             cfg_fname = os.path.split(opt.base[0])[-1]
             cfg_name = os.path.splitext(cfg_fname)[0]
-            name = "_"+cfg_name
+            name = "_" + cfg_name
         else:
             name = ""
-        nowname = now+name+opt.postfix
-        logdir = os.path.join("logs", nowname)
+        nowname = now + name + opt.postfix
+        logdir = os.path.join("%s/logs" % opt.save_root, nowname)
 
     ckptdir = os.path.join(logdir, "checkpoints")
     cfgdir = os.path.join(logdir, "configs")
@@ -470,7 +478,7 @@ if __name__ == "__main__":
                 "dirpath": ckptdir,
                 "filename": "{epoch:06}",
                 "verbose": True,
-                "save_last": True,
+                "save_last": True
             }
         }
         if hasattr(model, "monitor"):
@@ -478,12 +486,13 @@ if __name__ == "__main__":
             default_modelckpt_cfg["params"]["monitor"] = model.monitor
             default_modelckpt_cfg["params"]["save_top_k"] = 3
 
-        modelckpt_cfg = lightning_config.modelcheckpoint or OmegaConf.create()
-        modelckpt_cfg = OmegaConf.merge(default_modelckpt_cfg, modelckpt_cfg)
-        trainer_kwargs["checkpoint_callback"] = instantiate_from_config(modelckpt_cfg)
+        # modelckpt_cfg = lightning_config.modelcheckpoint or OmegaConf.create()
+        # modelckpt_cfg = OmegaConf.merge(default_modelckpt_cfg, modelckpt_cfg)
+        # trainer_kwargs["checkpoint_callback"] = instantiate_from_config(modelckpt_cfg)
 
         # add callback which sets up log directory
         default_callbacks_cfg = {
+            "checkpoint_callback": default_modelckpt_cfg,
             "setup_callback": {
                 "target": "main.SetupCallback",
                 "params": {
@@ -508,7 +517,7 @@ if __name__ == "__main__":
                 "target": "main.LearningRateMonitor",
                 "params": {
                     "logging_interval": "step",
-                    #"log_momentum": True
+                    # "log_momentum": True
                 }
             },
         }
@@ -529,15 +538,20 @@ if __name__ == "__main__":
         # configure learning rate
         bs, base_lr = config.data.params.batch_size, config.model.base_learning_rate
         if not cpu:
-            ngpu = len(lightning_config.trainer.gpus.strip(",").split(','))
+            try:
+                ngpu = len(lightning_config.trainer.gpus.strip(",").split(','))
+            except:
+                ngpu = 1
         else:
             ngpu = 1
         accumulate_grad_batches = lightning_config.trainer.accumulate_grad_batches or 1
         print(f"accumulate_grad_batches = {accumulate_grad_batches}")
         lightning_config.trainer.accumulate_grad_batches = accumulate_grad_batches
         model.learning_rate = accumulate_grad_batches * ngpu * bs * base_lr
-        print("Setting learning rate to {:.2e} = {} (accumulate_grad_batches) * {} (num_gpus) * {} (batchsize) * {:.2e} (base_lr)".format(
-            model.learning_rate, accumulate_grad_batches, ngpu, bs, base_lr))
+        print(
+            "Setting learning rate to {:.2e} = {} (accumulate_grad_batches) * {} (num_gpus) * {} (batchsize) * {:.2e} "
+            "(base_lr)".format(
+                model.learning_rate, accumulate_grad_batches, ngpu, bs, base_lr))
 
         # allow checkpointing via USR1
         def melk(*args, **kwargs):
@@ -547,11 +561,15 @@ if __name__ == "__main__":
                 ckpt_path = os.path.join(ckptdir, "last.ckpt")
                 trainer.save_checkpoint(ckpt_path)
 
+
         def divein(*args, **kwargs):
             if trainer.global_rank == 0:
-                import pudb; pudb.set_trace()
+                import pudb;
+                pudb.set_trace()
+
 
         import signal
+
         signal.signal(signal.SIGUSR1, melk)
         signal.signal(signal.SIGUSR2, divein)
 
@@ -565,7 +583,7 @@ if __name__ == "__main__":
         if not opt.no_test and not trainer.interrupted:
             trainer.test(model, data)
     except Exception:
-        if opt.debug and trainer.global_rank==0:
+        if opt.debug and trainer.global_rank == 0:
             try:
                 import pudb as debugger
             except ImportError:
@@ -574,7 +592,7 @@ if __name__ == "__main__":
         raise
     finally:
         # move newly created debug project to debug_runs
-        if opt.debug and not opt.resume and trainer.global_rank==0:
+        if opt.debug and not opt.resume and trainer.global_rank == 0:
             dst, name = os.path.split(logdir)
             dst = os.path.join(dst, "debug_runs", name)
             os.makedirs(os.path.split(dst)[0], exist_ok=True)

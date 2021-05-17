@@ -39,7 +39,7 @@ class VectorQuantizer(nn.Module):
         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
 
         d = torch.sum(z_flattened ** 2, dim=1, keepdim=True) + \
-            torch.sum(self.embedding.weight**2, dim=1) - 2 * \
+            torch.sum(self.embedding.weight ** 2, dim=1) - 2 * \
             torch.matmul(z_flattened, self.embedding.weight.t())
 
         ## could possible replace this here
@@ -57,17 +57,17 @@ class VectorQuantizer(nn.Module):
 
         # get quantized latent vectors
         z_q = torch.matmul(min_encodings, self.embedding.weight).view(z.shape)
-        #.........\end
+        # .........\end
 
         # with:
         # .........\start
-        #min_encoding_indices = torch.argmin(d, dim=1)
-        #z_q = self.embedding(min_encoding_indices)
+        # min_encoding_indices = torch.argmin(d, dim=1)
+        # z_q = self.embedding(min_encoding_indices)
         # ......\end......... (TODO)
 
         # compute loss for embedding
-        loss = torch.mean((z_q.detach()-z)**2) + self.beta * \
-            torch.mean((z_q - z.detach()) ** 2)
+        loss = torch.mean((z_q.detach() - z) ** 2) + self.beta * \
+               torch.mean((z_q - z.detach()) ** 2)
 
         # preserve gradients
         z_q = z + (z_q - z).detach()
@@ -85,7 +85,7 @@ class VectorQuantizer(nn.Module):
         # shape specifying (batch, height, width, channel)
         # TODO: check for more easy handling with nn.Embedding
         min_encodings = torch.zeros(indices.shape[0], self.n_e).to(indices)
-        min_encodings.scatter_(1, indices[:,None], 1)
+        min_encodings.scatter_(1, indices[:, None], 1)
 
         # get quantized latent vectors
         z_q = torch.matmul(min_encodings.float(), self.embedding.weight)

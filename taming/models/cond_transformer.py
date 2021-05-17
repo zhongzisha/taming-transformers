@@ -1,4 +1,3 @@
-import os, math
 import torch
 import torch.nn.functional as F
 import pytorch_lightning as pl
@@ -15,13 +14,15 @@ def disabled_train(self, mode=True):
 class Net2NetTransformer(pl.LightningModule):
     def __init__(self, transformer_config, first_stage_config,
                  cond_stage_config, permuter_config=None,
-                 ckpt_path=None, ignore_keys=[],
+                 ckpt_path=None, ignore_keys=None,
                  first_stage_key="image",
                  cond_stage_key="depth",
                  downsample_cond_size=-1,
                  pkeep=1.0):
 
         super().__init__()
+        if ignore_keys is None:
+            ignore_keys = []
         self.init_first_stage_from_ckpt(first_stage_config)
         self.init_cond_stage_from_ckpt(cond_stage_config)
         if permuter_config is None:
@@ -36,7 +37,9 @@ class Net2NetTransformer(pl.LightningModule):
         self.downsample_cond_size = downsample_cond_size
         self.pkeep = pkeep
 
-    def init_from_ckpt(self, path, ignore_keys=list()):
+    def init_from_ckpt(self, path, ignore_keys=None):
+        if ignore_keys is None:
+            ignore_keys = list()
         sd = torch.load(path, map_location="cpu")["state_dict"]
         for k in sd.keys():
             for ik in ignore_keys:

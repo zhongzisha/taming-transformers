@@ -15,12 +15,14 @@ class VQModel(pl.LightningModule):
                  n_embed,
                  embed_dim,
                  ckpt_path=None,
-                 ignore_keys=[],
+                 ignore_keys=None,
                  image_key="image",
                  colorize_nlabels=None,
                  monitor=None
                  ):
         super().__init__()
+        if ignore_keys is None:
+            ignore_keys = []
         self.image_key = image_key
         self.encoder = Encoder(**ddconfig)
         self.decoder = Decoder(**ddconfig)
@@ -37,7 +39,9 @@ class VQModel(pl.LightningModule):
         if monitor is not None:
             self.monitor = monitor
 
-    def init_from_ckpt(self, path, ignore_keys=list()):
+    def init_from_ckpt(self, path, ignore_keys=None):
+        if ignore_keys is None:
+            ignore_keys = list()
         sd = torch.load(path, map_location="cpu")["state_dict"]
         keys = list(sd.keys())
         for k in keys:

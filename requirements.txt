@@ -4,7 +4,6 @@ pillow
 torch
 tqdm
 opencv-python
-yaml
 pyyaml
 omegaconf
 scikit-image
@@ -12,3 +11,6 @@ torchvision
 requests
 scipy
 setuptools
+pytorch-lightning
+test-tube
+streamlit
