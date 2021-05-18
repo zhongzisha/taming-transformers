@@ -24,17 +24,19 @@ def run_conditional(model, dsets, outdir, top_k, temperature, batch_size=1):
     else:
         dset = next(iter(dsets.datasets.values()))
     print("Dataset: ", dset.__class__.__name__)
-    for start_idx in trange(0,len(dset)-batch_size+1,batch_size):
+    for start_idx in range(0,len(dset)-batch_size+1,batch_size):  # trange(0,len(dset)-batch_size+1,batch_size):
         indices = list(range(start_idx, start_idx+batch_size))
         example = default_collate([dset[i] for i in indices])
 
-        x = model.get_input("image", example).to(model.device)
+        # print(start_idx, example)   # keys = ['image', 'file_path_', 'class']
+
+        x = model.get_input(example, "image").to(model.device)
         for i in range(x.shape[0]):
             save_image(x[i], os.path.join(outdir, "originals",
                                           "{:06}.png".format(indices[i])))
 
         cond_key = model.cond_stage_key
-        c = model.get_input(cond_key, example).to(model.device)
+        c = model.get_input(example, cond_key).to(model.device)
 
         scale_factor = 1.0
         quant_z, z_indices = model.encode_to_z(x)

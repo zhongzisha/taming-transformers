@@ -225,8 +225,8 @@ class GantaHQValidation(Dataset):
 class Ganta_Aug_Train(FacesBase):
     def __init__(self, size, keys=None):
         super().__init__()
-        root = "data/GantaHQ_Aug/train"
-        with open("data/GantaHQ_Aug/train.txt", "r") as f:
+        root = "data/GantaHQ_Aug"
+        with open("data/Ganta_3_train.txt", "r") as f:
             relpaths = f.read().splitlines()
         paths = [os.path.join(root, relpath) for relpath in relpaths]
         print('train paths: ', paths)
@@ -237,8 +237,8 @@ class Ganta_Aug_Train(FacesBase):
 class Ganta_Aug_Validation(FacesBase):
     def __init__(self, size, keys=None):
         super().__init__()
-        root = "data/GantaHQ_Aug/val"
-        with open("data/GantaHQ_Aug/val.txt", "r") as f:
+        root = "data/GantaHQ_Aug/"
+        with open("data/Ganta_3_val.txt", "r") as f:
             relpaths = f.read().splitlines()
         paths = [os.path.join(root, relpath) for relpath in relpaths]
         print('val paths: ', paths)

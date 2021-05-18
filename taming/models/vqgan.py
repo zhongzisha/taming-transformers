@@ -73,8 +73,8 @@ class VQModel(pl.LightningModule):
         dec = self.decode(quant)
         return dec, diff
 
-    def get_input(self, batch, k):
-        x = batch[k]
+    def get_input(self, batch, key):
+        x = batch[key]
         if len(x.shape) == 3:
             x = x[..., None]
         x = x.permute(0, 3, 1, 2).to(memory_format=torch.contiguous_format)
