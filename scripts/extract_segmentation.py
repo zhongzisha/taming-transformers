@@ -17,8 +17,9 @@ CKPT_PATH = "TODO"
 
 rescale = lambda x: (x + 1.) / 2.
 
+
 def rescale_bgr(x):
-    x = (x+1)*127.5
+    x = (x + 1) * 127.5
     x = torch.flip(x, dims=[0])
     return x
 
@@ -83,10 +84,10 @@ def get_input(batch, k):
 def save_segmentation(segmentation, path):
     # --> class label to uint8, save as png
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    assert len(segmentation.shape)==4
-    assert segmentation.shape[0]==1
+    assert len(segmentation.shape) == 4
+    assert segmentation.shape[0] == 1
     for seg in segmentation:
-        seg = seg.permute(1,2,0).numpy().squeeze().astype(np.uint8)
+        seg = seg.permute(1, 2, 0).numpy().squeeze().astype(np.uint8)
         seg = Image.fromarray(seg)
         seg.save(path)
 

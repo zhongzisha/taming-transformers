@@ -100,12 +100,6 @@ def get_parser(**parser_kwargs):
         default="",
         help="post-postfix for default name",
     )
-    parser.add_argument(
-        "--save_root",
-        type=str,
-        default=".",
-        help="save root",
-    )
 
     return parser
 
@@ -408,7 +402,7 @@ if __name__ == "__main__":
         else:
             name = ""
         nowname = now + name + opt.postfix
-        logdir = os.path.join("%s/logs" % opt.save_root, nowname)
+        logdir = os.path.join("logs", nowname)
 
     ckptdir = os.path.join(logdir, "checkpoints")
     cfgdir = os.path.join(logdir, "configs")
@@ -422,10 +416,12 @@ if __name__ == "__main__":
         lightning_config = config.pop("lightning", OmegaConf.create())
         # merge trainer cli with config
         trainer_config = lightning_config.get("trainer", OmegaConf.create())
+        print(trainer_config)
         # default to ddp
         trainer_config["distributed_backend"] = "ddp"
         for k in nondefault_trainer_args(opt):
             trainer_config[k] = getattr(opt, k)
+        print(trainer_config)
         if not "gpus" in trainer_config:
             del trainer_config["distributed_backend"]
             cpu = True
@@ -478,7 +474,7 @@ if __name__ == "__main__":
                 "dirpath": ckptdir,
                 "filename": "{epoch:06}",
                 "verbose": True,
-                "save_last": True
+                "save_last": True,
             }
         }
         if hasattr(model, "monitor"):
@@ -486,13 +482,12 @@ if __name__ == "__main__":
             default_modelckpt_cfg["params"]["monitor"] = model.monitor
             default_modelckpt_cfg["params"]["save_top_k"] = 3
 
-        # modelckpt_cfg = lightning_config.modelcheckpoint or OmegaConf.create()
-        # modelckpt_cfg = OmegaConf.merge(default_modelckpt_cfg, modelckpt_cfg)
-        # trainer_kwargs["checkpoint_callback"] = instantiate_from_config(modelckpt_cfg)
+        modelckpt_cfg = lightning_config.modelcheckpoint or OmegaConf.create()
+        modelckpt_cfg = OmegaConf.merge(default_modelckpt_cfg, modelckpt_cfg)
+        trainer_kwargs["checkpoint_callback"] = instantiate_from_config(modelckpt_cfg)
 
         # add callback which sets up log directory
         default_callbacks_cfg = {
-            "checkpoint_callback": default_modelckpt_cfg,
             "setup_callback": {
                 "target": "main.SetupCallback",
                 "params": {
@@ -524,6 +519,7 @@ if __name__ == "__main__":
         callbacks_cfg = lightning_config.callbacks or OmegaConf.create()
         callbacks_cfg = OmegaConf.merge(default_callbacks_cfg, callbacks_cfg)
         trainer_kwargs["callbacks"] = [instantiate_from_config(callbacks_cfg[k]) for k in callbacks_cfg]
+        trainer_kwargs["gpus"] = "0"
 
         trainer = Trainer.from_argparse_args(trainer_opt, **trainer_kwargs)
 
@@ -538,10 +534,8 @@ if __name__ == "__main__":
         # configure learning rate
         bs, base_lr = config.data.params.batch_size, config.model.base_learning_rate
         if not cpu:
-            try:
-                ngpu = len(lightning_config.trainer.gpus.strip(",").split(','))
-            except:
-                ngpu = 1
+            print(lightning_config)
+            ngpu = 1  # len(lightning_config.trainer.gpus.strip(",").split(','))
         else:
             ngpu = 1
         accumulate_grad_batches = lightning_config.trainer.accumulate_grad_batches or 1
@@ -549,9 +543,9 @@ if __name__ == "__main__":
         lightning_config.trainer.accumulate_grad_batches = accumulate_grad_batches
         model.learning_rate = accumulate_grad_batches * ngpu * bs * base_lr
         print(
-            "Setting learning rate to {:.2e} = {} (accumulate_grad_batches) * {} (num_gpus) * {} (batchsize) * {:.2e} "
-            "(base_lr)".format(
+            "Setting learning rate to {:.2e} = {} (accumulate_grad_batches) * {} (num_gpus) * {} (batchsize) * {:.2e} (base_lr)".format(
                 model.learning_rate, accumulate_grad_batches, ngpu, bs, base_lr))
+
 
         # allow checkpointing via USR1
         def melk(*args, **kwargs):
@@ -564,7 +558,7 @@ if __name__ == "__main__":
 
         def divein(*args, **kwargs):
             if trainer.global_rank == 0:
-                import pudb
+                import pudb;
                 pudb.set_trace()
 
 

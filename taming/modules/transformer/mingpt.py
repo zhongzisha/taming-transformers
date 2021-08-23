@@ -321,8 +321,6 @@ def sample(model, x, steps, temperature=1.0, sample=False, top_k=None):
     return x
 
 
-<<<<<<< HEAD
-=======
 @torch.no_grad()
 def sample_with_past(x, model, steps, temperature=1., sample_logits=True,
                      top_k=None, top_p=None, callback=None):
@@ -354,9 +352,6 @@ def sample_with_past(x, model, steps, temperature=1., sample_logits=True,
     return sample
 
 
-#### clustering utils
-
->>>>>>> origin/master
 class KMeans(nn.Module):
     def __init__(self, ncluster=512, nc=3, niter=10):
         super().__init__()
