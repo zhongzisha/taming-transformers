@@ -7,6 +7,7 @@ from main import instantiate_from_config
 from taming.modules.diffusionmodules.model import Encoder, Decoder
 from taming.modules.vqvae.quantize import VectorQuantizer2 as VectorQuantizer
 from taming.modules.vqvae.quantize import GumbelQuantize
+from taming.modules.vqvae.quantize import EMAVectorQuantizer
 
 
 class VQModel(pl.LightningModule):
@@ -79,13 +80,13 @@ class VQModel(pl.LightningModule):
 
     def get_input(self, batch, key):
         x = batch[key]
-        if len(x.shape) == 3:   # x is BHWC
+        if len(x.shape) == 3:  # x is BHWC
             x = x[..., None]
-        x = x.permute(0, 3, 1, 2).to(memory_format=torch.contiguous_format)    # BHWC --> BCHW
+        x = x.permute(0, 3, 1, 2).to(memory_format=torch.contiguous_format)  # BHWC --> BCHW
         return x.float()
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        x = self.get_input(batch, self.image_key)    # BHWC -> BCHW
+        x = self.get_input(batch, self.image_key)  # BHWC -> BCHW
         xrec, qloss = self(x)
 
         if optimizer_idx == 0:
@@ -175,7 +176,7 @@ class VQSegmentationModel(VQModel):
                                   lr=lr, betas=(0.5, 0.9))
         return opt_ae
 
-    def training_step(self, batch, batch_idx, optimizer_idx):
+    def training_step(self, batch, batch_idx):
         x = self.get_input(batch, self.image_key)
         xrec, qloss = self(x)
         aeloss, log_dict_ae = self.loss(qloss, x, xrec, split="train")
@@ -186,13 +187,12 @@ class VQSegmentationModel(VQModel):
         x = self.get_input(batch, self.image_key)
         xrec, qloss = self(x)
         aeloss, log_dict_ae = self.loss(qloss, x, xrec, split="val")
-        self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=True)
         total_loss = log_dict_ae["val/total_loss"]
-        self.log("val/total_loss", total_loss,
+        self.log("val/total_loss1", total_loss,
                  prog_bar=True, logger=True, on_step=True, on_epoch=True, sync_dist=True)
+        self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=True)
         return aeloss
 
-    @torch.no_grad()
     def log_images(self, batch, **kwargs):
         log = dict()
         x = self.get_input(batch, self.image_key)
@@ -227,30 +227,25 @@ class VQNoDiscModel(VQModel):
                          ckpt_path=ckpt_path, ignore_keys=ignore_keys, image_key=image_key,
                          colorize_nlabels=colorize_nlabels)
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch, batch_idx, optimizer_idx):
         x = self.get_input(batch, self.image_key)
         xrec, qloss = self(x)
         # autoencode
         aeloss, log_dict_ae = self.loss(qloss, x, xrec, self.global_step, split="train")
-        output = pl.TrainResult(minimize=aeloss)
-        output.log("train/aeloss", aeloss,
-                   prog_bar=True, logger=True, on_step=True, on_epoch=True)
-        output.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=True)
-        return output
+        self.log("train/aeloss1", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=True)
+        return aeloss
 
     def validation_step(self, batch, batch_idx):
         x = self.get_input(batch, self.image_key)
         xrec, qloss = self(x)
-        aeloss, log_dict_ae = self.loss(qloss, x, xrec, self.global_step, split="val")
+        aeloss, log_dict_ae = self.loss(qloss, x, xrec, 0, self.global_step, split="val")
         rec_loss = log_dict_ae["val/rec_loss"]
-        output = pl.EvalResult(checkpoint_on=rec_loss)
-        output.log("val/rec_loss", rec_loss,
-                   prog_bar=True, logger=True, on_step=True, on_epoch=True)
-        output.log("val/aeloss", aeloss,
-                   prog_bar=True, logger=True, on_step=True, on_epoch=True)
-        output.log_dict(log_dict_ae)
+        self.log("val/rec_loss1", rec_loss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log("val/aeloss1", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log_dict(log_dict_ae)
 
-        return output
+        return aeloss
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(list(self.encoder.parameters()) +
@@ -365,3 +360,45 @@ class GumbelVQ(VQModel):
         log["inputs"] = x
         log["reconstructions"] = x_rec
         return log
+
+
+class EMAVQ(VQModel):
+    def __init__(self,
+                 ddconfig,
+                 lossconfig,
+                 n_embed,
+                 embed_dim,
+                 ckpt_path=None,
+                 ignore_keys=[],
+                 image_key="image",
+                 colorize_nlabels=None,
+                 monitor=None,
+                 remap=None,
+                 sane_index_shape=False,  # tell vector quantizer to return indices as bhw
+                 ):
+        super().__init__(ddconfig,
+                         lossconfig,
+                         n_embed,
+                         embed_dim,
+                         ckpt_path=None,
+                         ignore_keys=ignore_keys,
+                         image_key=image_key,
+                         colorize_nlabels=colorize_nlabels,
+                         monitor=monitor,
+                         )
+        self.quantize = EMAVectorQuantizer(n_embed=n_embed,
+                                           embedding_dim=embed_dim,
+                                           beta=0.25,
+                                           remap=remap)
+
+    def configure_optimizers(self):
+        lr = self.learning_rate
+        # Remove self.quantize from parameter list since it is updated via EMA
+        opt_ae = torch.optim.Adam(list(self.encoder.parameters()) +
+                                  list(self.decoder.parameters()) +
+                                  list(self.quant_conv.parameters()) +
+                                  list(self.post_quant_conv.parameters()),
+                                  lr=lr, betas=(0.5, 0.9))
+        opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(),
+                                    lr=lr, betas=(0.5, 0.9))
+        return [opt_ae, opt_disc], []

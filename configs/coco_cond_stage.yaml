@@ -7,21 +7,15 @@ model:
     image_key: "segmentation"
     n_labels: 183
     ddconfig:
-      double_z: false
+      double_z: False
       z_channels: 256
       resolution: 256
       in_channels: 183
       out_ch: 183
       ch: 128
-      ch_mult:
-      - 1
-      - 1
-      - 2
-      - 2
-      - 4
+      ch_mult: [ 1,1,2,2,4 ]  # num_down = len(ch_mult)-1
       num_res_blocks: 2
-      attn_resolutions:
-      - 16
+      attn_resolutions: [16]
       dropout: 0.0
 
     lossconfig:
@@ -30,20 +24,20 @@ model:
         codebook_weight: 1.0
 
 data:
-  target: cutlit.DataModuleFromConfig
+  target: main.DataModuleFromConfig
   params:
-    batch_size: 12
+    batch_size: 8
     train:
       target: taming.data.coco.CocoImagesAndCaptionsTrain
       params:
         size: 296
         crop_size: 256
-        onehot_segmentation: true
-        use_stuffthing: true
+        onehot_segmentation: True
+        use_stuffthing: True
     validation:
-      target: taming.data.coco.CocoImagesAndCaptionsTrain
+      target: taming.data.coco.CocoImagesAndCaptionsValidation
       params:
         size: 256
         crop_size: 256
-        onehot_segmentation: true
-        use_stuffthing: true
+        onehot_segmentation: True
+        use_stuffthing: True
